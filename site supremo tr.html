@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Triggerun / 超神狙击: O Arquivo Digital</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Roboto+Mono:wght@400;500;700&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Cyberpunk Dark & Neon -->
+    <!-- Application Structure Plan: A "digital archive" themed SPA. The structure is designed for exploration and discovery, not a linear read. A sticky top navigation allows users to jump between key exhibits: 'Introdução' (sets the scene), 'Dossiê dos Heróis' (the core interactive element), 'Análise' (data visualizations and context), and 'Legado' (the game's end). The centerpiece is the interactive hero dossier, allowing filtering and detailed views, transforming the report's flat list into an engaging database. This structure best serves the goal of preserving and exploring the game's complex history. -->
+    <!-- Visualization & Content Choices:
+        - Report Info: Full hero roster with names, IDs, classes, and origins. Goal: Organize/Explore. Method: Interactive card grid with filters and search. A modal shows details on click. Interaction: Filter, search, click. Justification: Most effective way to handle a large dataset of 23 characters, promoting user-led discovery.
+        - Report Info: Hero class distribution (9 Attack, 6 Defense, etc.). Goal: Compare/Analyze. Method: Donut Chart (Chart.js) showing class breakdown. Interaction: Hover tooltips. Justification: Instantly visualizes the report's conclusion about the "Attack-heavy" metagame.
+        - Report Info: Developer/publisher relationship (Vulcan, 2axion, Tencent). Goal: Inform. Method: "Digital Dossier" cards with clear headings. Interaction: Static. Justification: Presents the complex corporate structure in a digestible, skimmable format.
+        - Report Info: Hero origins (Chinese mythology). Goal: Inform/Engage. Method: Included directly in the hero detail modal, linking the Brazilian name to its original Pinyin/ mythological source. Interaction: Revealed on click. Justification: Adds a layer of "archaeological" discovery, enriching the user experience.
+        - CONFIRMATION: NO SVG graphics used. NO Mermaid JS used.
+    -->
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0c0a18;
+            color: #a7a9c4;
+            background-image: radial-gradient(circle at 25% 25%, rgba(13, 134, 255, 0.1) 0%, transparent 40%),
+                              radial-gradient(circle at 75% 75%, rgba(255, 0, 150, 0.1) 0%, transparent 40%);
+            background-attachment: fixed;
+        }
+        .font-orbitron { font-family: 'Orbitron', sans-serif; }
+        .font-mono { font-family: 'Roboto Mono', monospace; }
+        
+        .section-fade-in {
+            animation: fadeIn 0.8s ease-out forwards;
+            opacity: 0;
+        }
+
+        .nav-link {
+            position: relative;
+            transition: color 0.3s ease;
+            text-shadow: 0 0 5px rgba(255, 255, 255, 0.2);
+        }
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            bottom: -6px;
+            left: 0;
+            background-color: #ff0096;
+            transform: scaleX(0);
+            transform-origin: bottom right;
+            transition: transform 0.3s ease-out;
+            box-shadow: 0 0 8px #ff0096;
+        }
+        .nav-link:hover::after, .nav-link.active::after {
+            transform: scaleX(1);
+            transform-origin: bottom left;
+        }
+        .nav-link.active { color: #fff; }
+
+        .hero-card, .cosmetic-card {
+            background: rgba(14, 19, 48, 0.6);
+            border: 1px solid #2a2f58;
+            backdrop-filter: blur(5px);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .hero-card:hover, .cosmetic-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 0 20px rgba(0, 225, 255, 0.4);
+            border-color: #00e1ff;
+        }
+        
+        .modal { display: none; }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: #0c0a18 url('https://www.transparenttextures.com/patterns/carbon-fibre.png');
+            border: 1px solid #ff0096;
+            box-shadow: 0 0 30px rgba(255, 0, 150, 0.5);
+        }
+
+        .filter-btn {
+            background: rgba(14, 19, 48, 0.6);
+            border: 1px solid #2a2f58;
+            transition: all 0.2s ease;
+        }
+        .filter-btn:hover {
+            background: #ff0096;
+            color: white;
+            border-color: #ff0096;
+            box-shadow: 0 0 10px #ff0096;
+        }
+        .filter-btn.active {
+            background: #ff0096;
+            color: white;
+            border-color: #ff0096;
+            box-shadow: 0 0 10px #ff0096;
+        }
+        
+        .tag {
+            font-size: 0.7rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .tag-attack { background: rgba(255, 71, 71, 0.2); border: 1px solid #ff4747; color: #ffaeae; }
+        .tag-defense { background: rgba(0, 173, 255, 0.2); border: 1px solid #00adff; color: #a4e2ff; }
+        .tag-tank { background: rgba(167, 169, 196, 0.2); border: 1px solid #a7a9c4; color: #e1e3f5; }
+        .tag-support { background: rgba(0, 255, 157, 0.2); border: 1px solid #00ff9d; color: #a6ffd8; }
+        
+        .chart-container { position: relative; width: 100%; max-width: 350px; margin: auto; height: 350px; }
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- Header & Navigation -->
+    <header class="bg-black/30 backdrop-blur-lg sticky top-0 z-50 border-b border-slate-800/50">
+        <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <h1 class="text-2xl md:text-3xl font-orbitron font-bold text-white tracking-widest">
+                <span class="text-[#00e1ff]">TRIGGER</span><span class="text-[#ff0096]">UN</span>
+            </h1>
+            <div class="hidden md:flex space-x-8 text-slate-300 font-semibold items-center">
+                <a href="#intro" class="nav-link active">Relatório</a>
+                <a href="#dossier" class="nav-link">Heróis</a>
+                <a href="#cosmetics" class="nav-link">Cosméticos</a>
+                <a href="#analysis" class="nav-link">Análise</a>
+                <a href="#legacy" class="nav-link">Legado</a>
+            </div>
+            <button id="mobile-menu-button" class="md:hidden focus:outline-none">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-4 6h4"></path></svg>
+            </button>
+        </nav>
+        <div id="mobile-menu" class="hidden md:hidden bg-black/50 backdrop-blur-lg border-t border-slate-800/50">
+            <a href="#intro" class="block py-3 px-6 text-sm text-slate-300 hover:text-white hover:bg-slate-800/50">Relatório</a>
+            <a href="#dossier" class="block py-3 px-6 text-sm text-slate-300 hover:text-white hover:bg-slate-800/50">Heróis</a>
+            <a href="#cosmetics" class="block py-3 px-6 text-sm text-slate-300 hover:text-white hover:bg-slate-800/50">Cosméticos</a>
+            <a href="#analysis" class="block py-3 px-6 text-sm text-slate-300 hover:text-white hover:bg-slate-800/50">Análise</a>
+            <a href="#legacy" class="block py-3 px-6 text-sm text-slate-300 hover:text-white hover:bg-slate-800/50">Legado</a>
+        </div>
+    </header>
+
+    <main class="container mx-auto p-4 md:p-8">
+
+        <!-- Section 1: Introduction -->
+        <section id="intro" class="py-16 md:py-24 section-fade-in">
+            <div class="text-center">
+                <p class="font-mono text-[#00e1ff]">REGISTO DE ARQUIVO: #TRG-CSZJ-2018</p>
+                <h2 class="font-orbitron text-4xl md:text-6xl font-extrabold text-white tracking-tight mt-2">ARQUIVO DE UM ECO DIGITAL</h2>
+                <p class="mt-6 max-w-3xl mx-auto text-lg md:text-xl text-slate-400 leading-relaxed">Uma análise forense interativa de Triggerun e da sua contraparte chinesa, 超神狙击. Navegue pelo elenco de heróis recuperado, pela complexa teia de desenvolvimento e pela história de um jogo que ousou desafiar os gigantes.</p>
+            </div>
+        </section>
+
+        <!-- Section 2: Dossier -->
+        <section id="dossier" class="py-16 md:py-24 section-fade-in" style="animation-delay: 200ms;">
+            <div class="text-center mb-12">
+                <h2 class="font-orbitron text-3xl md:text-4xl font-bold text-white">Dossiê dos Heróis</h2>
+                <p class="mt-4 max-w-3xl mx-auto text-lg text-slate-400">Filtre o elenco de 23 agentes recuperados. Aceda aos seus ficheiros para examinar habilidades, skins e origens.</p>
+            </div>
+            
+            <div class="flex flex-col md:flex-row gap-4 mb-8 max-w-4xl mx-auto">
+                <div class="relative flex-grow">
+                    <input type="text" id="search-input" placeholder="Buscar agente (ex: Alice, Glider, Nezha...)" class="w-full pl-10 pr-4 py-3 bg-slate-900/50 border border-slate-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-[#ff0096]">
+                    <svg class="w-5 h-5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                </div>
+                <div class="flex items-center justify-center gap-2 flex-wrap">
+                    <button class="filter-btn active px-4 py-2 rounded-md text-sm font-semibold" data-filter="all">Todos</button>
+                    <button class="filter-btn px-4 py-2 rounded-md text-sm font-semibold" data-filter="Ataque">Ataque</button>
+                    <button class="filter-btn px-4 py-2 rounded-md text-sm font-semibold" data-filter="Defesa">Defesa</button>
+                    <button class="filter-btn px-4 py-2 rounded-md text-sm font-semibold" data-filter="Tank">Tanque</button>
+                    <button class="filter-btn px-4 py-2 rounded-md text-sm font-semibold" data-filter="Suporte">Suporte</button>
+                </div>
+            </div>
+
+            <div id="hero-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6"></div>
+            <p id="no-results" class="text-center text-slate-500 hidden mt-8">Nenhum agente encontrado.</p>
+        </section>
+        
+        <!-- Section 3: Cosmetics -->
+        <section id="cosmetics" class="py-16 md:py-24 section-fade-in" style="animation-delay: 400ms;">
+            <div class="text-center mb-12">
+                <h2 class="font-orbitron text-3xl md:text-4xl font-bold text-white">Arsenal Cosmético</h2>
+            </div>
+            <div>
+                <h3 class="font-orbitron text-2xl text-white mb-6 text-center">Avatares de Jogador (User Faces)</h3>
+                <div id="avatar-grid" class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-4 max-w-7xl mx-auto">
+                    <!-- Avatar cards will be injected by JS -->
+                </div>
+            </div>
+            <div class="mt-16">
+                 <h3 class="font-orbitron text-2xl text-white mb-6 text-center">Sprays (Player Paints)</h3>
+                 <div id="spray-grid" class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-4 max-w-7xl mx-auto">
+                     <!-- Spray cards will be injected by JS -->
+                 </div>
+            </div>
+        </section>
+
+        <!-- Section 4: Analysis -->
+        <section id="analysis" class="py-16 md:py-24 section-fade-in" style="animation-delay: 600ms;">
+            <div class="text-center mb-16">
+                <h2 class="font-orbitron text-3xl md:text-4xl font-bold text-white">Análise Tática</h2>
+                <p class="mt-4 max-w-3xl mx-auto text-lg text-slate-400">A distribuição de classes e a nomenclatura interna revelam uma filosofia de design focada em agressividade e uma clara origem de desenvolvimento na China.</p>
+            </div>
+            <div class="grid lg:grid-cols-5 gap-12 items-center">
+                <div class="lg:col-span-3 bg-slate-900/30 border border-slate-800/50 rounded-lg p-8">
+                    <h3 class="font-orbitron text-2xl text-white mb-4">A Origem nos Nomes de Código</h3>
+                    <p class="text-slate-400 leading-relaxed mb-4">A prova definitiva da origem chinesa reside no código. Nomes internos como <code class="font-mono bg-slate-800 text-[#00e1ff] px-2 py-1 rounded">leizhenzi</code>, <code class="font-mono bg-slate-800 text-[#00e1ff] px-2 py-1 rounded">xingtian</code>, e <code class="font-mono bg-slate-800 text-[#00e1ff] px-2 py-1 rounded">houyi</code>, correspondem diretamente a figuras da mitologia chinesa. Estes foram "localizados" para o mercado brasileiro com nomes como Glider, Tagaloa e Shogun. Este mapeamento é um artefacto digital do licenciamento do jogo.</p>
+                </div>
+                <div class="lg:col-span-2">
+                    <div class="bg-slate-900/30 border border-slate-800/50 rounded-lg p-6">
+                        <h3 class="text-xl font-orbitron text-center text-white mb-4">Composição do Elenco</h3>
+                        <div class="chart-container">
+                            <canvas id="classDistributionChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 5: Legacy -->
+        <section id="legacy" class="py-16 md:py-24 section-fade-in" style="animation-delay: 800ms;">
+            <div class="text-center mb-12">
+                <h2 class="font-orbitron text-3xl md:text-4xl font-bold text-white">Fim da Linha</h2>
+                <p class="mt-4 max-w-3xl mx-auto text-lg text-slate-400">O jogo não terminou com um evento final, mas com o inevitável "espiral da morte do multijogador". Uma baixa contagem de jogadores levou à sua descontinuação, e o seu legado agora vive apenas em arquivos como este.</p>
+            </div>
+             <div class="max-w-4xl mx-auto grid md:grid-cols-3 gap-6 text-center">
+                <div class="bg-slate-900/30 border border-slate-800/50 p-6 rounded-lg">
+                    <p class="text-5xl font-orbitron font-bold text-[#ff0096]">65</p>
+                    <p class="mt-2 font-semibold text-white">Pico de Jogadores</p>
+                </div>
+                <div class="bg-slate-900/30 border border-slate-800/50 p-6 rounded-lg">
+                     <p class="text-5xl font-orbitron font-bold text-[#ff0096]">~2019</p>
+                    <p class="mt-2 font-semibold text-white">Desligamento Estimado</p>
+                </div>
+                <div class="bg-slate-900/30 border border-slate-800/50 p-6 rounded-lg">
+                     <p class="text-5xl font-orbitron font-bold text-[#ff0096]">23</p>
+                    <p class="mt-2 font-semibold text-white">Heróis Arquivados</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal -->
+    <div id="hero-modal" class="modal fixed inset-0 bg-black/80 backdrop-blur-sm items-center justify-center p-4 z-50">
+        <div class="modal-content rounded-lg w-full max-w-6xl max-h-[90vh] overflow-y-auto relative" id="modal-inner">
+            <!-- Modal content injected by JS -->
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const baseAssetUrl = 'https://trig.2cdn.xyz/TRIG/res1/res';
+            
+            // This object is now populated based on the full file lists provided.
+            const fileVersions = {"Icon/painticon/1.txt":"1.1.1","Icon/painticon/10.txt":"1.1.1","Icon/painticon/100.txt":"1.1.1","Icon/painticon/101.txt":"1.1.1","Icon/painticon/102.txt":"1.1.1","Icon/painticon/103.txt":"1.2.1","Icon/painticon/104.txt":"1.2.1","Icon/painticon/105.txt":"1.1.22","Icon/painticon/106.txt":"1.1.25","Icon/painticon/107.txt":"1.1.25","Icon/painticon/108_bx.txt":"1.1.30","Icon/painticon/109_bx.txt":"1.1.30","Icon/painticon/11.txt":"1.1.1","Icon/painticon/110_bx.txt":"1.1.30","Icon/painticon/111_bx.txt":"1.1.30","Icon/painticon/112_bx.txt":"1.1.30","Icon/painticon/113_bx.txt":"1.1.30","Icon/painticon/114_bx.txt":"1.1.30","Icon/painticon/115_bx.txt":"1.1.30","Icon/painticon/116_bx.txt":"1.1.30","Icon/painticon/117_bx.txt":"1.1.30","Icon/painticon/118_bx.txt":"1.1.30","Icon/painticon/119_bx.txt":"1.1.30","Icon/painticon/12.txt":"1.1.1","Icon/painticon/120_bx.txt":"1.1.30","Icon/painticon/121_bx.txt":"1.1.30","Icon/painticon/122_bx.txt":"1.1.30","Icon/painticon/123_bx.txt":"1.1.30","Icon/painticon/124_bx.txt":"1.1.30","Icon/painticon/125_bx.txt":"1.1.30","Icon/painticon/126_bx.txt":"1.1.30","Icon/painticon/127_bx.txt":"1.1.30","Icon/painticon/128_bx.txt":"1.1.30","Icon/painticon/129_bx.txt":"1.1.30","Icon/painticon/13.txt":"1.1.1","Icon/painticon/130_bx.txt":"1.1.30","Icon/painticon/131_bx.txt":"1.1.30","Icon/painticon/132.txt":"1.2.1","Icon/painticon/133_bx.txt":"1.2.1","Icon/painticon/134_bx.txt":"1.2.1","Icon/painticon/135_bx.txt":"1.2.1","Icon/painticon/136_bx.txt":"1.2.1","Icon/painticon/137_bx.txt":"1.2.1","Icon/painticon/138_bx.txt":"1.2.1","Icon/painticon/139_bx.txt":"1.2.5","Icon/painticon/14.txt":"1.1.1","Icon/painticon/140_bx.txt":"1.2.1","Icon/painticon/141_bx.txt":"1.2.1","Icon/painticon/142_bx.txt":"1.2.1","Icon/painticon/143_bx.txt":"1.2.1","Icon/painticon/144_bx.txt":"1.2.1","Icon/painticon/145_bx.txt":"1.2.1","Icon/painticon/146_bx.txt":"1.2.1","Icon/painticon/147_bx.txt":"1.2.1","Icon/painticon/148_bx.txt":"1.2.1","Icon/painticon/149_bx.txt":"1.2.1","Icon/painticon/15.txt":"1.1.1","Icon/painticon/150_bx.txt":"1.2.1","Icon/painticon/16.txt":"1.1.1","Icon/painticon/17.txt":"1.1.1","Icon/painticon/18.txt":"1.1.1","Icon/painticon/19.txt":"1.1.1","Icon/painticon/2.txt":"1.1.1","Icon/painticon/20.txt":"1.1.1","Icon/painticon/21.txt":"1.1.1","Icon/painticon/22.txt":"1.1.1","Icon/painticon/23.txt":"1.1.1","Icon/painticon/24.txt":"1.1.1","Icon/painticon/25.txt":"1.1.1","Icon/painticon/26.txt":"1.1.1","Icon/painticon/27.txt":"1.1.1","Icon/painticon/28.txt":"1.1.1","Icon/painticon/29.txt":"1.1.1","Icon/painticon/3.txt":"1.1.1","Icon/painticon/30.txt":"1.1.1","Icon/painticon/31.txt":"1.1.1","Icon/painticon/32.txt":"1.1.1","Icon/painticon/33.txt":"1.1.1","Icon/painticon/34.txt":"1.1.1","Icon/painticon/35.txt":"1.1.1","Icon/painticon/38.txt":"1.1.1","Icon/painticon/39.txt":"1.1.1","Icon/painticon/4.txt":"1.1.1","Icon/painticon/40.txt":"1.1.1","Icon/painticon/41.txt":"1.1.1","Icon/painticon/42.txt":"1.1.1","Icon/painticon/43.txt":"1.1.1","Icon/painticon/44.txt":"1.1.1","Icon/painticon/45.txt":"1.1.1","Icon/painticon/46.txt":"1.1.1","Icon/painticon/47.txt":"1.1.1","Icon/painticon/48.txt":"1.1.1","Icon/painticon/49.txt":"1.1.1","Icon/painticon/5.txt":"1.1.1","Icon/painticon/50.txt":"1.1.1","Icon/painticon/51.txt":"1.1.1","Icon/painticon/52.txt":"1.1.1","Icon/painticon/53.txt":"1.1.1","Icon/painticon/54.txt":"1.1.1","Icon/painticon/55.txt":"1.1.1","Icon/painticon/56.txt":"1.1.1","Icon/painticon/57.txt":"1.1.1","Icon/painticon/58.txt":"1.1.1","Icon/painticon/59.txt":"1.1.1","Icon/painticon/6.txt":"1.1.1","Icon/painticon/60.txt":"1.1.1","Icon/painticon/61.txt":"1.1.1","Icon/painticon/62.txt":"1.1.1","Icon/painticon/63.txt":"1.1.1","Icon/painticon/64.txt":"1.1.1","Icon/painticon/65.txt":"1.1.1","Icon/painticon/67.txt":"1.1.1","Icon/painticon/68.txt":"1.1.1","Icon/painticon/69.txt":"1.1.1","Icon/painticon/7.txt":"1.1.1","Icon/painticon/70.txt":"1.1.1","Icon/painticon/70_bx.txt":"1.1.14","Icon/painticon/71.txt":"1.1.1","Icon/painticon/72.txt":"1.1.1","Icon/painticon/73.txt":"1.1.1","Icon/painticon/74.txt":"1.1.1","Icon/painticon/75.txt":"1.1.1","Icon/painticon/76.txt":"1.1.1","Icon/painticon/77.txt":"1.1.1","Icon/painticon/78.txt":"1.1.1","Icon/painticon/79.txt":"1.1.1","Icon/painticon/8.txt":"1.1.1","Icon/painticon/80.txt":"1.2.1","Icon/painticon/81.txt":"1.2.1","Icon/painticon/82.txt":"1.2.1","Icon/painticon/9.txt":"1.1.1","Icon/painticon/graffiti_1.txt":"3.1.20","Icon/painticon/graffiti_10.txt":"3.1.20","Icon/painticon/graffiti_11.txt":"3.1.20","Icon/painticon/graffiti_12.txt":"3.2.02","Icon/painticon/graffiti_13.txt":"3.2.02","Icon/painticon/graffiti_14.txt":"3.2.02","Icon/painticon/graffiti_15.txt":"3.2.02","Icon/painticon/graffiti_16.txt":"3.2.02","Icon/painticon/graffiti_17.txt":"3.2.02","Icon/painticon/graffiti_18.txt":"3.2.02","Icon/painticon/graffiti_19.txt":"3.2.02","Icon/painticon/graffiti_2.txt":"3.1.20","Icon/painticon/graffiti_20.txt":"3.2.02","Icon/painticon/graffiti_21.txt":"3.2.02","Icon/painticon/graffiti_22.txt":"3.2.02","Icon/painticon/graffiti_23.txt":"3.2.02","Icon/painticon/graffiti_24.txt":"3.2.02","Icon/painticon/graffiti_25.txt":"3.2.02","Icon/painticon/graffiti_26.txt":"3.2.02","Icon/painticon/graffiti_27.txt":"3.2.02","Icon/painticon/graffiti_28.txt":"3.2.02","Icon/painticon/graffiti_29.txt":"3.1.53","Icon/painticon/graffiti_3.txt":"3.1.20","Icon/painticon/graffiti_30.txt":"3.2.02","Icon/painticon/graffiti_31.txt":"3.2.02","Icon/painticon/graffiti_32.txt":"3.2.02","Icon/painticon/graffiti_33.txt":"3.2.02","Icon/painticon/graffiti_34.txt":"3.2.02","Icon/painticon/graffiti_35.txt":"3.2.02","Icon/painticon/graffiti_4.txt":"3.1.20","Icon/painticon/graffiti_5.txt":"3.1.20","Icon/painticon/graffiti_6.txt":"3.1.20","Icon/painticon/graffiti_7.txt":"3.1.20","Icon/painticon/graffiti_8.txt":"3.1.20","Icon/painticon/graffiti_9.txt":"3.1.20","Icon/userface/1001.txt":"1.1.1","Icon/userface/1002.txt":"1.1.1","Icon/userface/1002_bx.txt":"1.1.29","Icon/userface/1003.txt":"1.1.1","Icon/userface/1004.txt":"1.1.1","Icon/userface/1005.txt":"1.1.1","Icon/userface/1006.txt":"1.1.1","Icon/userface/1007.txt":"1.1.1","Icon/userface/1007_bx.txt":"1.1.29","Icon/userface/1008.txt":"1.1.1","Icon/userface/1008_bx.txt":"1.1.29","Icon/userface/1009.txt":"1.1.1","Icon/userface/1009_bx.txt":"1.1.29","Icon/userface/1010.txt":"1.1.1","Icon/userface/1010_bx.txt":"1.1.29","Icon/userface/1118.txt":"1.1.1","Icon/userface/1119.txt":"1.1.1","Icon/userface/1120.txt":"1.1.1","Icon/userface/1120_bx.txt":"1.1.14","Icon/userface/1121.txt":"1.1.1","Icon/userface/1122.txt":"1.1.1","Icon/userface/1123.txt":"1.1.1","Icon/userface/1124.txt":"1.1.1","Icon/userface/1124_bx.txt":"1.1.29","Icon/userface/1127.txt":"1.1.1","Icon/userface/1128.txt":"1.1.1","Icon/userface/1129.txt":"1.1.1","Icon/userface/1130.txt":"1.1.1","Icon/userface/2001.txt":"1.1.1","Icon/userface/2002.txt":"1.1.1","Icon/userface/2002_bx.txt":"1.1.29","Icon/userface/2003.txt":"1.1.1","Icon/userface/2003_bx.txt":"1.1.29","Icon/userface/2004.txt":"1.1.1","Icon/userface/2004_bx.txt":"1.1.29","Icon/userface/2005.txt":"1.1.1","Icon/userface/2006.txt":"1.1.1","Icon/userface/2007.txt":"1.1.1","Icon/userface/2007_bx.txt":"1.1.29","Icon/userface/2008.txt":"1.1.1","Icon/userface/2008_bx.txt":"1.1.29","Icon/userface/2009.txt":"1.1.1","Icon/userface/2009_bx.txt":"3.1.86","Icon/userface/2010.txt":"1.1.1","Icon/userface/2010_bx.txt":"1.1.29","Icon/userface/2011.txt":"1.1.1","Icon/userface/2011_bx.txt":"1.1.29","Icon/userface/2012.txt":"1.1.1","Icon/userface/2012_bx.txt":"1.1.29","Icon/userface/2013.txt":"1.1.1","Icon/userface/2013_bx.txt":"1.1.29","Icon/userface/2014.txt":"1.1.1","Icon/userface/2014_bx.txt":"1.1.29","Icon/userface/2015.txt":"1.1.1","Icon/userface/2016.txt":"1.1.1","Icon/userface/2017.txt":"1.1.1","Icon/userface/2018.txt":"1.1.1","Icon/userface/2018_bx.txt":"1.1.29","Icon/userface/2020.txt":"1.1.1","Icon/userface/2101.txt":"1.1.1","Icon/userface/2102.txt":"1.1.1","Icon/userface/2103.txt":"1.1.1","Icon/userface/2104.txt":"1.1.1","Icon/userface/2105.txt":"1.1.1","Icon/userface/2106.txt":"1.1.1","Icon/userface/2107.txt":"1.1.1","Icon/userface/2108.txt":"1.1.1","Icon/userface/2109.txt":"1.1.1","Icon/userface/2110.txt":"1.1.1","Icon/userface/2111.txt":"1.1.1","Icon/userface/2112.txt":"1.1.1","Icon/userface/2113.txt":"1.1.1","Icon/userface/2114.txt":"1.1.1","Icon/userface/2115.txt":"1.1.1","Icon/userface/2116.txt":"1.1.1","Icon/userface/2117.txt":"1.1.1","Icon/userface/2118.txt":"1.1.1","Icon/userface/2119.txt":"1.1.1","Icon/userface/2120.txt":"1.1.1","Icon/userface/2121.txt":"1.1.1","Icon/userface/2200.txt":"1.1.1","Icon/userface/2201.txt":"1.1.1","Icon/userface/2202.txt":"1.1.1","Icon/userface/2203.txt":"1.1.1","Icon/userface/2204.txt":"1.1.1","Icon/userface/2205.txt":"1.1.1","Icon/userface/2206.txt":"1.2.1","Icon/userface/2207.txt":"1.2.1","Icon/userface/2208.txt":"1.2.1","Icon/userface/2220.txt":"1.1.1","Icon/userface/2221.txt":"1.1.1","Icon/userface/2222.txt":"1.1.1","Icon/userface/2223.txt":"1.2.1","Icon/userface/2224.txt":"1.2.1","Icon/userface/3001.txt":"1.1.1","Icon/userface/3001_bx.txt":"1.1.29","Icon/userface/3002.txt":"1.1.1","Icon/userface/3003.txt":"1.1.1","Icon/userface/3003_bx.txt":"1.1.29","Icon/userface/3004.txt":"1.1.1","Icon/userface/3004_bx.txt":"1.1.29","Icon/userface/3005.txt":"1.1.1","Icon/userface/3005_bx.txt":"1.1.29","Icon/userface/3006.txt":"1.1.1","Icon/userface/3006_bx.txt":"1.1.29","Icon/userface/3007.txt":"1.1.1","Icon/userface/3007_bx.txt":"1.1.29","Icon/userface/3008.txt":"1.1.1","Icon/userface/3009.txt":"1.1.1","Icon/userface/3009_bx.txt":"1.1.29","Icon/userface/3010.txt":"1.1.1","Icon/userface/3010_bx.txt":"1.1.29","Icon/userface/3011.txt":"1.1.1","Icon/userface/3011_bx.txt":"1.1.29","Icon/userface/3012.txt":"1.1.1","Icon/userface/3012_bx.txt":"1.1.29","Icon/userface/3013.txt":"1.1.1","Icon/userface/3013_bx.txt":"1.1.29","Icon/userface/3014.txt":"1.1.1","Icon/userface/3014_bx.txt":"1.1.29","Icon/userface/3015.txt":"1.1.1","Icon/userface/3015_bx.txt":"1.1.29","Icon/userface/3016.txt":"1.1.1","Icon/userface/3017.txt":"1.1.1","Icon/userface/3018.txt":"1.1.1","Icon/userface/3019.txt":"1.1.1","Icon/userface/3020.txt":"1.1.1","Icon/userface/3021.txt":"1.1.29","Icon/userface/3022.txt":"1.1.29","Icon/userface/3023.txt":"1.1.29","Icon/userface/3024.txt":"1.1.29","Icon/userface/3025.txt":"1.2.1","Icon/userface/3027.txt":"1.2.1","Icon/userface/3028.txt":"1.2.1","Icon/userface/3029.txt":"1.2.1","Icon/userface/3030.txt":"1.2.1","Icon/userface/3031.txt":"1.2.1","Icon/userface/3032.txt":"1.2.1","Icon/userface/3033.txt":"1.2.1","Icon/userface/3034.txt":"1.2.1","Icon/userface/3035.txt":"1.2.1","Icon/userface/3036.txt":"1.2.1","Icon/userface/3037.txt":"1.2.1","Icon/userface/3038.txt":"1.2.1","Icon/userface/3039.txt":"1.2.1","Icon/userface/3040.txt":"1.2.1","Icon/userface/3041.txt":"1.2.1","Icon/userface/3042.txt":"1.2.1","Icon/userface/3043.txt":"1.2.1","Icon/userface/3044.txt":"1.2.1","Icon/userface/3045.txt":"1.2.1","Icon/userface/3046.txt":"1.2.1","Icon/userface/3047.txt":"1.2.1","Icon/userface/3048.txt":"1.2.1","Icon/userface/3049.txt":"1.2.1","Icon/userface/3050.txt":"1.2.1","Icon/userface/3051.txt":"1.2.1"};
+
+            const getAssetUrl = (path) => {
+                const version = fileVersions[path] || "1.1.1";
+                return `${baseAssetUrl}/${version}/StreamingAssets/${path.replace(/\\/g, '/')}`;
+            };
+            
+            const heroData = [
+                { id: "1003", name: "Alice", ico: "dianna_1", internal: "dianna", origin: "黛安娜 (Diana)", class: "Defesa", skins: [{name:"(Classic) Skin",icon:"dianna_1"},{name:"(Sniper Elite) Skin",icon:"dianna_2"},{name:"(Deception Master) Skin",icon:"dianna_3"},{name:"Starry Sky (Alice)",icon:"dianna_5"}], weapons: [{name:"(Classic) arma",icon:"dianna_1"},{name:"(Golden) arma",icon:"dianna_2"}], emotions: [{name:"(Fingir de morto) Emoji",icon:"dianna_50"},{name:"(Em guarda) Emoji",icon:"dianna_200"},{name:"(Ataque físico) Emoji",icon:"dianna_51"},{name:"(Dance) Emoji",icon:"dianna_201"},{name:"(Elegante) Emoji",icon:"dianna_52"}], poses: [{name:"Pose: Sentry",icon:"dianna_302"}], skills: [ { name: "Sniper Rifle", icon: "dianna", desc: "Sniper Rifle pode ser usado para causar dano crítico a inimigos em longa distância." }, { name: "Gun Sight", icon: "dianna", desc: "Pressione para mirar com scope." }, { name: "Teleporte", icon: "DiannaCS", cd: 10000, longtime: 10000, desc: "Pode teleportar para uma certa posição." }, { name: "Camuflagem Óptica", icon: "DiannaYS", cd: 20000, longtime: 6000, desc: "Fique invisível para o inimigo não te ver." }, { name: "Detectar Infrared", icon: "DiannaHWZC", desc: "Localize todos os alvos do oponente.", isUltra: true } ] },
+                { id: "1029", name: "Angel", ico: "luolita_1", internal: "luolita", origin: "洛丽塔 (Lolita)", class: "Suporte", skins: [{name:"(Classic) Skin",icon:"luolita_1"},{name:"(Harley Quinn) Skin",icon:"luolita_2"},{name:"Chapéuzinho Vermelho",icon:"luolita_3"},{name:"Starry Sky (Angel)",icon:"luolita_4"}], weapons: [{name:"(Classic) arma",icon:"luolita_1"},{name:"(Golden) arma",icon:"luolita_2"}], emotions: [{name:"(Tímido) Emoji",icon:"luolita_50"},{name:"(Sentar) Emoji",icon:"luolita_200"},{name:"(Sneer) Emoji",icon:"luolita_52"},{name:"(Saúde) Emoji",icon:"luolita_51"},{name:"(Dance) Emoji",icon:"luolita_201"}], poses: [], skills: [ { name: "Erfeet's Roar", icon: "luolita", desc: "Use o poder da fire fairy para atacar inimigos." }, { name: "Sylph's Wind", icon: "luolitaJS", cd: 18000, longtime: 0, desc: "Use o poder da water fairy para acelerar os companheiros dentro da área." }, { name: "Undina's Power", icon: "luolitaSL", cd: 12000, longtime: 0, desc: "Use o poder explosão da water fairy para curar companheiros e causar dano nos inimigos dentro da área." }, { name: "Undina's Blessing", icon: "luolitaSL", desc: "Companheiros, dentro da área, será curado lentamente.", isPassive: true }, { name: "Gnome's Light", icon: "luolitaFH", desc: "Use o poder da earth fairy, para reviver companheiros de equipe mortos dentro da área.", isUltra: true } ] },
+                { id: "1023", name: "Brigit", ico: "zhurong_1", internal: "zhurong", origin: "祝融 (Zhurong)", class: "Defesa", skins: [{name:"(Classic) Skin",icon:"zhurong_1"},{name:"(Enthusiasm) Skin",icon:"zhurong_2"},{name:"Fire Lady",icon:"zhurong_3"},{name:"Starry Sky (Brigit)",icon:"zhurong_4"}], weapons: [{name:"(Classic) arma",icon:"zhurong_1"},{name:"(Golden) arma",icon:"zhurong_2"}], emotions: [{name:"(Sim, senhor) Emoji",icon:"zhurong_50"},{name:"(Distante) Emoji",icon:"zhurong_51"},{name:"(Descansar) Emoji",icon:"zhurong_200"},{name:"(Na bala) Emoji",icon:"zhurong_201"},{name:"(Rio 40 Graus) Emoji",icon:"zhurong_52"}], poses: [{name:"Pose: Prepared",icon:"zhurong_302"}], skills: [ { name: "Flamethrower", icon: "zhurong", desc: "Lança chamas de curto alcance." }, { name: "Fire Ball", icon: "zhurong", desc: "Atira uma bola de fogo para atacar inimigos em longa distância." }, { name: "Flame Sentry", icon: "ZhurongHYJL", cd: 8000, longtime: 0, desc: "Coloque uma Flame Sentry para atacar inimigos dentro da área." }, { name: "Born of Fire", icon: "ZhurongYHCS", cd: 12000, longtime: 4000, desc: "Temporariamente imbatível e heal." }, { name: "Ignite", icon: "ZhurongDR", desc: "Todo ataque de fogo pode causar um efeito incendiário.", isPassive: true }, { name: "Hell Forge", icon: "ZhurongHHRC", desc: "Atira uma Hell Forge e pode lidar com os inimigos dentro de uma área.", isUltra: true } ] },
+                { id: "1021", name: "Carmen", ico: "taliya_1", internal: "taliya", origin: "塔莉娅 (Taliyah)", class: "Suporte", skins: [{name:"(Classic) Skin",icon:"taliya_1"},{name:"(Gypsy Bride) Skin",icon:"taliya_2"},{name:"Cleopatra",icon:"taliya_3"},{name:"Starry Sky (Carmen)",icon:"taliya_4"}], weapons: [{name:"(Classic) arma",icon:"taliya_1"},{name:"(Golden) arma",icon:"taliya_2"}], emotions: [{name:"(Provocar) Emoji",icon:"taliya_50"},{name:"(Respite) Emoji",icon:"taliya_200"},{name:"(Relax) Emoji",icon:"taliya_201"},{name:"(Tá fácil) Emoji",icon:"taliya_51"},{name:"(Encantar) Emoji",icon:"taliya_202"}], poses: [{name:"Pose: Dignified",icon:"taliya_302"}], skills: [ { name: "Tarot Cards", icon: "taliya", desc: "Jogue algumas cartas para a frente." }, { name: "Cut-Heal", icon: "TaliyaZLSJ", cd: 500, longtime: 0, desc: "Curar continuamente o alvo." }, { name: "Cut-Death", icon: "MulanXJDB", cd: 500, longtime: 0, desc: "Aumente o dano causado ao alvo e rastreie o alvo." }, { name: "Instinct", icon: "taliyaJS", desc: "Velocidade de movimento aumenta depois de danificado.", isPassive: true }, { name: "Fate", icon: "TaliyaSJZZ", desc: "Torne-se imbatível e cure companheiros próximos.", isUltra: true } ] },
+                { id: "1017", name: "Celina", ico: "mulan_1", internal: "mulan", origin: "木兰 (Mulan)", class: "Ataque", skins: [{name:"(Classic) Skin",icon:"mulan_1"},{name:"(High-school Girl) Skin",icon:"mulan_2"},{name:"Rabbit-ear Maid",icon:"mulan_3"},{name:"Starry Sky (Celina)",icon:"mulan_4"}], weapons: [{name:"(Classic) arma",icon:"mulan_1"},{name:"(Golden) arma",icon:"mulan_2"}], emotions: [{name:"(Leisure) Emoji",icon:"mulan_50"},{name:"(Fiquem em casa crianças) Emoji",icon:"mulan_51"},{name:"(Descansar) Emoji",icon:"mulan_200"},{name:"(Rumba) Emoji",icon:"mulan_201"},{name:"(Bastao Invisível) Emoji",icon:"mulan_52"}], poses: [{name:"Pose: Ready",icon:"mulan_302"}], skills: [ { name: "Pulse Gun", icon: "mulan", desc: "Uma arma precisa e fatal." }, { name: "Double-guns Rapid Fire", icon: "MulanSQSS", cd: 8000, longtime: 0, desc: "Usar duas armas para lançar fogo imediatamente." }, { name: "Flash", icon: "HermesSX", cd: 4000, longtime: 0, desc: "Reluzir para a direção do movimento." }, { name: "Death Sentence", icon: "MulanSWZF", desc: "Causar dano a todos os inimigos ao redor.", isUltra: true } ] },
+                { id: "1037", name: "David", ico: "dawei_1", internal: "dawei", origin: "大卫 (David)", class: "Tank", skins: [{name:"(Classic) Skin",icon:"dawei_1"},{name:"擎天柱 (Optimus Prime)",icon:"dawei_2"},{name:"Starry Sky (David)",icon:"dawei_3"}], weapons: [{name:"(经典)武器",icon:"dawei_1"}], emotions: [{name:"(烦人的苍蝇)表情",icon:"dawei_51"}], poses: [], skills: [ { name: "Canhão Electromagnético", icon: "dawei", desc: "Agira um Canhão Eletromagnético." }, { name: "Míssil de Assalto", icon: "daweiDDTX", cd: 10000, longtime: 0, desc: "Mire em uma área primeiro e bombardeie com mísseis." }, { name: "Matrix Defensiva", icon: "daweiFYJZ", cd: 6000, longtime: 3000, desc: "Resista as balas logo em frente." }, { name: "Teleport em Grupo", icon: "daweiQTCS", desc: "Construa um portal, permitindo companheiros se teleportarem.", isUltra: true } ] },
+                { id: "1026", name: "Dragos", ico: "aidehua_1", internal: "aidehua", origin: "爱德华 (Edward)", class: "Ataque", skins: [{name:"(Classic) Skin",icon:"aidehua_1"},{name:"(Dragos Prince) Skin",icon:"aidehua_2"},{name:"(Tyrant) Skin",icon:"aidehua_3"},{name:"(Bloodseeker) Skin",icon:"aidehua_4"},{name:"Starry Sky (Dragos)",icon:"aidehua_5"}], weapons: [{name:"(Classic) arma",icon:"aidehua_1"},{name:"(Golden) arma",icon:"aidehua_2"}], emotions: [{name:"(Do grego, estratégia) Emoji",icon:"aidehua_50"},{name:"(Rir) Emoji",icon:"aidehua_51"},{name:"(Sentar) Emoji",icon:"aidehua_200"},{name:"(Gentileza) Emoji",icon:"aidehua_52"},{name:"(Hora da caça) Emoji",icon:"aidehua_53"}], poses: [{name:"Pose: Blood Claw",icon:"aidehua_302"}], skills: [ { name: "Blightcaller", icon: "aidehua", desc: "Arma de curto alcance, causa dano contínuo para reduzir health dos inimigos." }, { name: "Explosive Bats", icon: "aidehuaBFZD", cd: 10000, longtime: 0, desc: "Solta três morcegos explosivos para atacar inimigos." }, { name: "Incarnation", icon: "aidehuaHS", cd: 5000, longtime: 3000, desc: "Se transforma em um morcego de movimento rápido." }, { name: "Blood Rage", icon: "aidehuaBS", cd: 1000, longtime: 8000, desc: "Ativa o Bloodthirsty state, usa garras para caçar inimigos e transformar uma parte do dano em health.", isUltra: true } ] },
+                { id: "1025", name: "Eva", ico: "linglong_1", internal: "linglong", origin: "玲珑 (Linglong)", class: "Defesa", skins: [{name:"(Classic) Skin",icon:"linglong_1"},{name:"(Jade Gem) Skin",icon:"linglong_2"},{name:"Mechanical Policewoman",icon:"linglong_3"},{name:"Mechanician",icon:"linglong_4"},{name:"Little Sister",icon:"linglong_5"},{name:"Starry Sky (Eva)",icon:"linglong_6"}], weapons: [{name:"(Classic) arma",icon:"linglong_1"},{name:"(Golden) arma",icon:"linglong_2"}], emotions: [{name:"(Standby) Emoji",icon:"linglong_200"},{name:"(Sneer) Emoji",icon:"linglong_50"},{name:"(Prepare pra briga) Emoji",icon:"linglong_51"},{name:"(Dance) Emoji",icon:"linglong_201"},{name:"(Saúde) Emoji",icon:"linglong_52"}], poses: [{name:"Pose: Ready",icon:"linglong_302"}], skills: [ { name: "Rapid Fire Gun", icon: "linglong", desc: "Arma com alto ritmo de disparo." }, { name: "Cage", icon: "LingLongLL", cd: 10000, longtime: 0, desc: "A gaiola pode atrapalhar os inimigos temporariamente e diminuir os danos." }, { name: "Auto Cannon", icon: "LingLongBZPT", cd: 12000, longtime: 0, desc: "Coloque um canhão automático para atacar inimigos." }, { name: "Teleport Metrix", icon: "LingLongCSMB", desc: "Coloque um Teleport Metrix para criar um caminho do local de início.", isUltra: true } ] },
+                { id: "1036", name: "Gaya", ico: "Medusa_1", internal: "Medusa", origin: "美杜莎 (Medusa)", class: "Ataque", skins: [{name:"(经典)皮肤",icon:"Medusa_1"},{name:"女忍",icon:"Medusa_2"},{name:"Starry Sky (Gaya)",icon:"Medusa_3"}], weapons: [{name:"(经典)武器",icon:"meidusha_1"}], emotions: [{name:"(蛇女的诱惑)表情",icon:"Medusa_50"}], poses: [], skills: [ { name: "Cascavel", icon: "meidusha", desc: "Atira um foguete com alcance limitado." }, { name: "Death Stare", icon: "meidushaSWNS", cd: 12000, longtime: 0, desc: "Atira uma bala com alcance limitado e cria espaço onde tempo desacelera." }, { name: "Hook Rope", icon: "meidushaGS", cd: 10000, longtime: 0, desc: "Atira uma Hook Rope, empurrando-se caso golpeie um objeto e stun inimigos se golpeados." }, { name: "Gorgon", icon: "meidushaSFNY", desc: "Produz uma poluição tóxica, redução de dano e velocidade aumentada.", isUltra: true } ] },
+                { id: "1005", name: "Glider", ico: "leizhenzi_1", internal: "leizhenzi", origin: "雷震子 (Lei Zhenzi)", class: "Ataque", skins: [{name:"(Classic) Skin",icon:"leizhenzi_1"},{name:"(Precious Pilot) Skin",icon:"leizhenzi_2"},{name:"(Wind Purchaser) Skin",icon:"leizhenzi_3"},{name:"Starry Sky (Glider)",icon:"leizhenzi_4"}], weapons: [{name:"(Classic) arma",icon:"leizhenzi_1"},{name:"(Golden) arma",icon:"leizhenzi_2"}], emotions: [{name:"(Hmm? Oh!) Emoji",icon:"leizhenzi_50"},{name:"(Relax) Emoji",icon:"leizhenzi_200"},{name:"(Ginasta) Emoji",icon:"leizhenzi_51"},{name:"(Sempre alerta) Emoji",icon:"leizhenzi_52"},{name:"(Salute) Emoji",icon:"leizhenzi_53"}], poses: [{name:"Pose: Confidence",icon:"leizhenzi_302"}], skills: [ { name: "Rocket Launcher", icon: "leizhenzi", desc: "Uma arma de longa distância explosiva que pode lançar micro mísseis." }, { name: "Thunder Bomb", icon: "LeizhenziZDCJ", cd: 15000, longtime: 0, desc: "Pode produzir uma área de tempestade." }, { name: "Thruster", icon: "LeizhenziTJBB", cd: 10000, longtime: 0, desc: "Ligue o propulsor para voar imediatamente." }, { name: "Suspending Fly", icon: "LeizhenziFX", desc: "Pressione para ficar suspenso no ar.", isPassive: true }, { name: "Viber Missile", icon: "LeizhenziHJDM", desc: "Glider observa todos os inimigos em seu campo de visão e lança um míssil em suas direções.", isUltra: true } ] },
+                { id: "1027", name: "Jack", ico: "shawang_1", internal: "shawang", origin: "沙王 (Sand King)", class: "Ataque", skins: [{name:"(Classic) Skin",icon:"shawang_1"},{name:"(Quarterback) Skin",icon:"shawang_2"},{name:"(Punk) Skin",icon:"shawang_3"},{name:"(Bull Devil) Skin",icon:"shawang_4"},{name:"Starry Sky (Jack)",icon:"shawang_5"}], weapons: [{name:"(Classic) arma",icon:"yinglong_1"},{name:"(Golden) arma",icon:"yinglong_2"}], emotions: [{name:"(Salute) Emoji",icon:"shawang_50"},{name:"(Hahaha…) Emoji",icon:"shawang_51"},{name:"(Sempre alerta) Emoji",icon:"shawang_200"},{name:"(Touro mecânico) Emoji",icon:"shawang_201"},{name:"(Provocar) Emoji",icon:"shawang_52"}], poses: [], skills: [ { name: "Pulsed Shotgun", icon: "shawang", desc: "Arma de dispersão curto alcance." }, { name: "Bloodthirsty", icon: "shawangSX", cd: 10000, longtime: 5000, desc: "Jack ganha efeito Mitigation e converte o dano que causou para sua health." }, { name: "Charge", icon: "shawangTJ", cd: 8000, longtime: 10000, desc: "Ataque adiante, stun um inimigo cool down será reduzido se matar o inimigo." }, { name: "Planet Attraction", icon: "shawangSB", desc: "Jogue um criador de rachaduras para atrapalhar todos os inimigos ao redor.", isUltra: true } ] },
+                { id: "1031", name: "Johnny", ico: "lanbo_1", internal: "lanbo", origin: "兰博 (Rambo)", class: "Ataque", skins: [{name:"(Classic) Skin",icon:"lanbo_1"},{name:"(Pop Star) Skin",icon:"lanbo_2"},{name:"Starry Sky (Johnny)",icon:"lanbo_3"}], weapons: [{name:"(Classic) arma",icon:"lanbo_1"},{name:"(Golden) arma",icon:"lanbo_2"}], emotions: [{name:"(Pronto) Emoji",icon:"lanbo_50"},{name:"(True quality of soldiers) Emoji",icon:"lanbo_200"},{name:"(Tema da vitória) Emoji",icon:"lanbo_51"},{name:"(Cabeça gira) Emoji",icon:"lanbo_52"}], poses: [], skills: [ { name: "Automatic Rifle", icon: "lanbo", desc: "Arma de assalto totalmente automática." }, { name: "Gun Sight", icon: "lanboYJJM", desc: "Capaz de usar scope pra mirar." }, { name: "Defensive Trap", icon: "lanboKJDL", cd: 12000, longtime: 0, desc: "Coloca uma armadilha defensiva para atirar nos inimigos dentro da área." }, { name: "Detection Missile", icon: "lanboTSZD", cd: 20000, longtime: 0, desc: "Lança um míssil de detecção que possa detectar as ações dos inimigos dentro da área." }, { name: "Auto-Aim", icon: "lanboZDMZ", desc: "A bala rastreará automaticamente inimigos e a velocidade de recarga aumentará.", isUltra: true } ] },
+                { id: "1034", name: "Khan", ico: "huangzhong_1", internal: "huangzhong", origin: "黄忠 (Huang Zhong)", class: "Tank", skins: [{name:"(经典)皮肤",icon:"huangzhong_1"},{name:"(Mafia) Skin",icon:"huangzhong_2"},{name:"(Papai Noel) Skin",icon:"huangzhong_3"},{name:"Starry Sky (Khan)",icon:"huangzhong_4"}], weapons: [{name:"(经典)武器",icon:"huangzhong_1"}], emotions: [{name:"(老当益壮)表情",icon:"huangzhong_50"}], poses: [], skills: [ { name: "Gatling Gun", icon: "huangzhong", desc: "ADM com alto ritmo de disparo e alto poder." }, { name: "Dedication", icon: "huangzhongfx", cd: 6000, longtime: 0, desc: "Perde sua própria health e usa pra curar companheiros." }, { name: "Asylum", icon: "huangzhongbh", cd: 8000, longtime: 0, desc: "Leva o dano que companheiros tomam em um período de tempo." }, { name: "Blood Anger", icon: "huangzhangxn", desc: "O danos causado irá adicionar blood rage para aumentar o poder de ataque.", isPassive: true }, { name: "Iron", icon: "huangzhongtx", desc: "Incapaz de ser morto por um tempo, e a energia do blood rage não diminuirá.", isUltra: true } ] },
+                { id: "1015", name: "Lars", ico: "zhongjiezhe_1", internal: "zhongjiezhe", origin: "终结者 (Terminator)", class: "Ataque", skins: [{name:"(Classic) Skin",icon:"zhongjiezhe_1"},{name:"(Hawaii) Skin",icon:"zhongjiezhe_2"},{name:"Special-operation Vanguard",icon:"zhongjiezhe_3"},{name:"Elvis",icon:"zhongjiezhe_4"},{name:"Starry Sky (Lars)",icon:"zhongjiezhe_5"}], weapons: [{name:"(Classic) arma",icon:"zhongjiezhe_1"},{name:"(Golden) arma",icon:"zhongjiezhe_2"}], emotions: [{name:"(De olho em você) Emoji",icon:"zhongjiezhe_50"},{name:"(Sim, senhor) Emoji",icon:"zhongjiezhe_200"},{name:"(Relax) Emoji",icon:"zhongjiezhe_51"},{name:"(Touro mecânico) Emoji",icon:"zhongjiezhe_201"},{name:"(Perdeu boy) Emoji",icon:"zhongjiezhe_52"},{name:"(Thomas convolution) Emoji",icon:"zhongjiezhe_53"}], poses: [{name:"Pose: Deterrence",icon:"zhongjiezhe_302"}], skills: [ { name: "Assault Rifle", icon: "zhongjiezhe1", desc: "Arma de assalto totalmente automática." }, { name: "High-explosive Grenade", icon: "ZhongjiezheSL", cd: 15000, longtime: 0, desc: "Lança uma granada de grande explosão." }, { name: "Biologicals", icon: "ZhongjiezheZL", cd: 12000, longtime: 0, desc: "Injetar biológicos para curá-lo." }, { name: "Rush", icon: "ZhongjiezheCC", cd: 0, longtime: 600000, desc: "Rápido movimento para frente." }, { name: "Destroyer", icon: "ZhongjiezheZJSK", cd: 1000, longtime: 8000, desc: "Use uma Gaitling gun para causar muito dano aos inimigos.", isUltra: true } ] },
+                { id: "1033", name: "Lily", ico: "lilisi_1", internal: "lilisi", origin: "莉莉丝 (Lilith)", class: "Suporte", skins: [{name:"(经典)皮肤",icon:"lilisi_1"},{name:"(Assassin Faith) Skin",icon:"lilisi_2"},{name:"Starry Sky (Lily)",icon:"lilisi_3"}], weapons: [{name:"(经典)武器",icon:"lilisi_1"}], emotions: [{name:"(天气真好)表情",icon:"lilisi_50"}], poses: [], skills: [ { name: "Magic Chains", icon: "lilisi", desc: "Use uma motosserra para acabar com inimigos a frente." }, { name: "Magic Rush", icon: "lilisiQS", cd: 4000, longtime: 0, desc: "Derruba os inimigos a frente." }, { name: "Magic Shield", icon: "lilisiMFPZ", cd: 10000, longtime: 0, desc: "Invoca um escudo mágico que voa avante, resiste a balas e causa dano aos inimigos que encostam." }, { name: "Magic Drug", icon: "lilisiMNZL", cd: 8000, longtime: 0, desc: "Faça medicamentos de recuperação para curar seus companheiros." }, { name: "Soul Chains", icon: "lilisiTKNW", desc: "Deixa os inimigos dentro da área incapazes de usar skills e causa danos a eles ao longo do tempo.", isUltra: true } ] },
+                { id: "1028", name: "Loki", ico: "luoji_1", internal: "luoji", origin: "洛基 (Loki)", class: "Defesa", skins: [{name:"(Classic) Skin",icon:"luoji_1"},{name:"(Jungle Rumble) Skin",icon:"luoji_2"},{name:"Starry Sky (Loki)",icon:"luoji_4"}], weapons: [{name:"(Classic) arma",icon:"luoji_1"},{name:"(Golden) arma",icon:"luoji_2"}], emotions: [{name:"(Leisure) Emoji",icon:"luoji_202"},{name:"(SneerProvoke) Emoji",icon:"luoji_51"},{name:"(Deitar) Emoji",icon:"luoji_200"},{name:"(Dance) Emoji",icon:"luoji_201"},{name:"(Bom trabalho) Emoji",icon:"luoji_50"}], poses: [], skills: [ { name: "Howitzer", icon: "luoji", desc: "Arma de parábola de longa distância com dano AoE." }, { name: "Energy Cannon", icon: "luojiJNP", cd: 8000, longtime: 2000, desc: "Se torna imbatível em um curto período, e dispare danos sofridos no modo imbatível." }, { name: "Remote Bomb", icon: "luojiYKZD", cd: 8000, longtime: 0, desc: "Coloca uma bomba e a exploda com botão direito do mouse." }, { name: "Bombing", icon: "luojiKHLZ", desc: "Arremesse um terrível barril de pó.", isUltra: true } ] },
+                { id: "1035", name: "Nezha", ico: "nezha_1", internal: "nezha", origin: "哪吒 (Nezha)", class: "Ataque", skins: [{name:"(经典)皮肤",icon:"nezha_1"},{name:"(Third Prince) Skin",icon:"nezha_2"},{name:"Starry Sky (Nezha)",icon:"nezha_3"}], weapons: [{name:"(经典)武器",icon:"nezha_1"}], emotions: [{name:"(万向乾坤)表情",icon:"nezha_51"}], poses: [], skills: [ { name: "Fire Spear", icon: "nezha", desc: "Uma lança usada para esfaquear e atacar em área." }, { name: "Sky-earth Round", icon: "nezhaQKQ", cd: 2000, longtime: 0, desc: "Use sky-earth round para atacar inimigos de longa distância." }, { name: "Flower Storm", icon: "nezhaHMRY", cd: 8000, longtime: 0, desc: "Dano enorme aos inimigos a frente." }, { name: "Lunge", icon: "nezhaQCRL", cd: 8000, longtime: 0, desc: "Salte no ar, clique mouse botão esquerdo para esfaquear, stun o golpe dos inimigos." }, { name: "Great Spirit", icon: "nezhaHRZQ", desc: "Ganha efeito Superman Powers em um curto período, para aumentar o dano, velocidade de movimento e redução de dano.", isUltra: true } ] },
+                { id: "1022", name: "Scarlett", ico: "xuenv_1", internal: "xuenv", origin: "雪女 (Yuki-onna)", class: "Defesa", skins: [{name:"(Classic) Skin",icon:"xuenv_1"},{name:"(Chinese Style) Skin",icon:"xuenv_2"},{name:"(Moon) Skin",icon:"xuenv_3"},{name:"Rainha do Gelo",icon:"xuenv_4"},{name:"Starry Sky (Scarlett)",icon:"xuenv_5"}], weapons: [{name:"(Classic) arma",icon:"xuenv_1"},{name:"(Golden) arma",icon:"xuenv_2"}], emotions: [{name:"(Sentar) Emoji",icon:"xuenv_200"},{name:"(Jest) Emoji",icon:"xuenv_50"},{name:"(Bocejar) Emoji",icon:"xuenv_51"},{name:"(Dance) Emoji",icon:"xuenv_201"},{name:"(Manda beijinho) Emoji",icon:"xuenv_52"}], poses: [{name:"Pose: Dignified",icon:"xuenv_302"}], skills: [ { name: "Snow Slide · Cold Stone", icon: "xuenv", desc: "Atira uma bala grande usando mira para atacar inimigos a longa distância." }, { name: "Snow Slide · Ice Soul", icon: "xuenv", desc: "Atira bala de pistão de gelo de gelo na frente, atacar inimigos a curta distância." }, { name: "Snow Fairy", icon: "XuenvBXJL", cd: 10000, longtime: 5000, desc: "Constrói um feitiço de neve para o centro de si mesma, para fazer com que os inimigos sejam danificados e desacelerados." }, { name: "Frozen Trap", icon: "XuenvBDXJ", cd: 10000, longtime: 0, desc: "Arma uma armadilha para deixar inimigos temporariamente congelados." }, { name: "Snow Ball", icon: "XuenvDXQ", desc: "Controla e detonA uma bola de neve explosiva.", isUltra: true } ] },
+                { id: "1024", name: "Shogun", ico: "houyi_1", internal: "houyi", origin: "后羿 (Hou Yi)", class: "Defesa", skins: [{name:"(Classic) Skin",icon:"houyi_1"},{name:"(Ninja) Skin",icon:"houyi_2"},{name:"(Light Ranger) Skin",icon:"houyi_3"},{name:"Court Musician",icon:"houyi_4"},{name:"Starry Sky (Shogun)",icon:"houyi_5"}], weapons: [{name:"(Classic) arma",icon:"houyi_1"},{name:"(Golden) arma",icon:"houyi_2"}], emotions: [{name:"(Sentar) Emoji",icon:"houyi_200"},{name:"(Sneer) Emoji",icon:"houyi_50"},{name:"(Fique atento) Emoji",icon:"houyi_51"},{name:"(Aplaudir) Emoji",icon:"houyi_52"},{name:"(Dance) Emoji",icon:"houyi_201"}], poses: [{name:"Pose: Archer",icon:"houyi_302"}], skills: [ { name: "Compound Bow", icon: "houyi", desc: "Pressione botão direito do mouse e solte-o para causar mais dano." }, { name: "Concussive Shot", icon: "HouyiJTJ", cd: 8000, longtime: 1000, desc: "Atire uma flecha com bomba de choque para contra atacar os inimigos." }, { name: "Explosive Shot", icon: "HouyiBLJ", cd: 10000, longtime: 1000, desc: "Atire uma flecha com bomba pegajosa para explodir a área alvo." }, { name: "Wall-climb", icon: "HouyiPQ", desc: "Salte e suba as paredes.", isPassive: true }, { name: "Phoenix's Wings", icon: "HouyiFYTX", desc: "Summon uma fênix mortal para engolir todos os inimigos no caminho.", isUltra: true } ] },
+                { id: "1006", name: "Tagaloa", ico: "xingtian_1", internal: "xingtian", origin: "刑天 (Xing Tian)", class: "Tank", skins: [{name:"(Classic) Skin",icon:"xingtian_1"},{name:"(Regenerated Soldier) Skin",icon:"xingtian_2"},{name:"Golden Armor Defender",icon:"xingtian_3"},{name:"Starry Sky (Tagaloa)",icon:"xingtian_4"}], weapons: [{name:"(Classic) arma",icon:"xingtian_1"},{name:"(Golden) arma",icon:"xingtian_2"}], emotions: [{name:"(Forte) Emoji",icon:"xingtian_50"},{name:"(Tá favorável) Emoji",icon:"xingtian_51"},{name:"(Descansar) Emoji",icon:"xingtian_200"},{name:"(Dance) Emoji",icon:"xingtian_201"},{name:"(Só love) Emoji",icon:"xingtian_52"}], poses: [{name:"Pose: Strong",icon:"xingtian_302"}], skills: [ { name: "Fist of Justice", icon: "xingtian", desc: "Um braço mecânico com forte poder de colisão." }, { name: "Fire Fist", icon: "XingtianLYDJ", cd: 6000, longtime: 0, desc: "Lançar uma bola de energia flamejante." }, { name: "Shield", icon: "XingtianNLD", cd: 5000, longtime: 0, desc: "Forma um escudo de energia para cobrir seus companheiros." }, { name: "Earth Rift attack", icon: "XingtianLDMJ", desc: "Bate no chão e stunna todos os inimigos ao redor.", isUltra: true } ] },
+                { id: "1016", name: "Valkyrie", ico: "waerjili_1", internal: "waerjili", origin: "瓦尔基里 (Valkyrie)", class: "Tank", skins: [{name:"(Classic) Skin",icon:"waerjili_1"},{name:"(Batter) Skin",icon:"waerjili_2"},{name:"(Royal Guard) Skin",icon:"waerjili_3"},{name:"Starry Sky (Valkyrie)",icon:"waerjili_4"}], weapons: [{name:"(Classic) arma",icon:"waerjili_1"},{name:"(Golden) arma",icon:"waerjili_2"}], emotions: [{name:"(Onde vai) Emoji",icon:"waerjili_50"},{name:"(Em guarda) Emoji",icon:"waerjili_200"},{name:"(Checa lá) Emoji",icon:"waerjili_51"},{name:"(Dance) Emoji",icon:"waerjili_201"},{name:"(Strikeball) Emoji",icon:"waerjili_52"}], poses: [{name:"Pose: Legendary Swordsman",icon:"waerjili_302"}], skills: [ { name: "Blade of Fear", icon: "waerjili", desc: "Uma arma poderosa de curto alcance." }, { name: "Leap Attack", icon: "WaerjiliTZ", cd: 5000, longtime: 10000, desc: "Pular para o ar, causar danos aos inimigos após a aterrissagem e aumentar sua velocidade de movimento." }, { name: "Energy Shield", icon: "WaerjiliNLD", cd: 8000, longtime: 4000, desc: "Fazer escudos ao redor absorver mais de 2000 damage, e os escudos durarão 2,5 segundos." }, { name: "Whirldwind", icon: "WaerjiliXFZ", desc: "Causar dano a todos os inimigos ao redor.", isUltra: true } ] },
+                { id: "1032", name: "Venus", ico: "daji_1", internal: "daji", origin: "妲己 (Daji)", class: "Suporte", skins: [{name:"(经典)皮肤",icon:"daji_1"},{name:"(Indian Girl) Skin",icon:"daji_2"},{name:"Starry Sky (Venus)",icon:"daji_3"}], weapons: [{name:"(经典)武器",icon:"daji_1"}], emotions: [{name:"(懒起画蛾眉)表情",icon:"daji_50"}], poses: [], skills: [ { name: "Nine-tailed Fox", icon: "daji", desc: "Atire a bala de alta energia RoF." }, { name: "Heal Zone", icon: "dajiZLLY", cd: 15000, longtime: 0, desc: "Faz um feitiço para curar companheiros." }, { name: "Ancient Guard", icon: "dajiYGSH", cd: 12000, longtime: 0, desc: "Constrói um escudo para repelir as balas dos inimigos." }, { name: "Fox Pantom", icon: "dajiQHMY", desc: "Companheiros dentro da área recebem blessing da fox fairy, serão capazes de resistir a danos maiores.", isUltra: true } ] },
+                { id: "1030", name: "Vincent", ico: "jingke_1", internal: "jingke", origin: "荆轲 (Jing Ke)", class: "Ataque", skins: [{name:"(Classic) Skin",icon:"jingke_1"},{name:"(Eros) Skin",icon:"jingke_2"},{name:"Starry Sky (Vincent)",icon:"jingke_3"}], weapons: [{name:"(Classic) arma",icon:"jingke_1"},{name:"(Golden) arma",icon:"jingke_2"}], emotions: [{name:"(Ginasta) Emoji",icon:"jingke_50"},{name:"(Sentar) Emoji",icon:"jingke_200"},{name:"(Um tiro, uma kill) Emoji",icon:"jingke_52"},{name:"(Fique atento) Emoji",icon:"jingke_51"},{name:"(Passa geral) Emoji",icon:"jingke_201"}], poses: [], skills: [ { name: "Submachine Gun", icon: "jingke", desc: "Arma de curto alcance que atira rápido." }, { name: "Warpath", icon: "JingkeHX", desc: "Health Ball para curar irá cair após a morte de inimigos.", isPassive: true }, { name: "Assassinate", icon: "JingkeCQ", cd: 12000, longtime: 233, desc: "Atire um dardo para atordoar o inimigo que o atinge." }, { name: "Regicide", icon: "JingkeSJ", cd: 6000, longtime: 0, desc: "Ataca e causa danos aos inimigos no caminho." }, { name: "Wall-climb", icon: "HouyiPQ", desc: "Salte e suba as paredes.", isPassive: true }, { name: "Duel", icon: "JingkeYS", desc: "Aumenta o dano, velocidade de movimento, redução de danos em um período e reseta cool down de skills.", isUltra: true } ] }
+            ].map(hero => ({
+                ...hero,
+                class: hero.class === 'Tank' ? 'Tanque' : hero.class,
+                iconUrl: getAssetUrl(`Icon/headsmall/${hero.ico}.txt`),
+                imageUrl: getAssetUrl(`Icon/SelectHeroUI/headbig/${hero.ico}.txt`),
+            }));
+            
+            const cosmeticData = {
+                avatars: [ { path: 'Icon/userface/1001.txt', version: '1.1.1' }, { path: 'Icon/userface/1002.txt', version: '1.1.1' }, { path: 'Icon/userface/1002_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/1003.txt', version: '1.1.1' }, { path: 'Icon/userface/1004.txt', version: '1.1.1' }, { path: 'Icon/userface/1005.txt', version: '1.1.1' }, { path: 'Icon/userface/1006.txt', version: '1.1.1' }, { path: 'Icon/userface/1007.txt', version: '1.1.1' }, { path: 'Icon/userface/1007_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/1008.txt', version: '1.1.1' }, { path: 'Icon/userface/1008_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/1009.txt', version: '1.1.1' }, { path: 'Icon/userface/1009_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/1010.txt', version: '1.1.1' }, { path: 'Icon/userface/1010_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/1118.txt', version: '1.1.1' }, { path: 'Icon/userface/1119.txt', version: '1.1.1' }, { path: 'Icon/userface/1120.txt', version: '1.1.1' }, { path: 'Icon/userface/1120_bx.txt', version: '1.1.14' }, { path: 'Icon/userface/1121.txt', version: '1.1.1' }, { path: 'Icon/userface/1122.txt', version: '1.1.1' }, { path: 'Icon/userface/1123.txt', version: '1.1.1' }, { path: 'Icon/userface/1124.txt', version: '1.1.1' }, { path: 'Icon/userface/1124_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/1127.txt', version: '1.1.1' }, { path: 'Icon/userface/1128.txt', version: '1.1.1' }, { path: 'Icon/userface/1129.txt', version: '1.1.1' }, { path: 'Icon/userface/1130.txt', version: '1.1.1' }, { path: 'Icon/userface/2001.txt', version: '1.1.1' }, { path: 'Icon/userface/2002.txt', version: '1.1.1' }, { path: 'Icon/userface/2002_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/2003.txt', version: '1.1.1' }, { path: 'Icon/userface/2003_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/2004.txt', version: '1.1.1' }, { path: 'Icon/userface/2004_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/2005.txt', version: '1.1.1' }, { path: 'Icon/userface/2006.txt', version: '1.1.1' }, { path: 'Icon/userface/2007.txt', version: '1.1.1' }, { path: 'Icon/userface/2007_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/2008.txt', version: '1.1.1' }, { path: 'Icon/userface/2008_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/2009.txt', version: '1.1.1' }, { path: 'Icon/userface/2009_bx.txt', version: '3.1.86' }, { path: 'Icon/userface/2010.txt', version: '1.1.1' }, { path: 'Icon/userface/2010_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/2011.txt', version: '1.1.1' }, { path: 'Icon/userface/2011_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/2012.txt', version: '1.1.1' }, { path: 'Icon/userface/2012_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/2013.txt', version: '1.1.1' }, { path: 'Icon/userface/2013_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/2014.txt', version: '1.1.1' }, { path: 'Icon/userface/2014_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/2015.txt', version: '1.1.1' }, { path: 'Icon/userface/2016.txt', version: '1.1.1' }, { path: 'Icon/userface/2017.txt', version: '1.1.1' }, { path: 'Icon/userface/2018.txt', version: '1.1.1' }, { path: 'Icon/userface/2018_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/2020.txt', version: '1.1.1' }, { path: 'Icon/userface/2101.txt', version: '1.1.1' }, { path: 'Icon/userface/2102.txt', version: '1.1.1' }, { path: 'Icon/userface/2103.txt', version: '1.1.1' }, { path: 'Icon/userface/2104.txt', version: '1.1.1' }, { path: 'Icon/userface/2105.txt', version: '1.1.1' }, { path: 'Icon/userface/2106.txt', version: '1.1.1' }, { path: 'Icon/userface/2107.txt', version: '1.1.1' }, { path: 'Icon/userface/2108.txt', version: '1.1.1' }, { path: 'Icon/userface/2109.txt', version: '1.1.1' }, { path: 'Icon/userface/2110.txt', version: '1.1.1' }, { path: 'Icon/userface/2111.txt', version: '1.1.1' }, { path: 'Icon/userface/2112.txt', version: '1.1.1' }, { path: 'Icon/userface/2113.txt', version: '1.1.1' }, { path: 'Icon/userface/2114.txt', version: '1.1.1' }, { path: 'Icon/userface/2115.txt', version: '1.1.1' }, { path: 'Icon/userface/2116.txt', version: '1.1.1' }, { path: 'Icon/userface/2117.txt', version: '1.1.1' }, { path: 'Icon/userface/2118.txt', version: '1.1.1' }, { path: 'Icon/userface/2119.txt', version: '1.1.1' }, { path: 'Icon/userface/2120.txt', version: '1.1.1' }, { path: 'Icon/userface/2121.txt', version: '1.1.1' }, { path: 'Icon/userface/2200.txt', version: '1.1.1' }, { path: 'Icon/userface/2201.txt', version: '1.1.1' }, { path: 'Icon/userface/2202.txt', version: '1.1.1' }, { path: 'Icon/userface/2203.txt', version: '1.1.1' }, { path: 'Icon/userface/2204.txt', version: '1.1.1' }, { path: 'Icon/userface/2205.txt', version: '1.1.1' }, { path: 'Icon/userface/2206.txt', version: '1.2.1' }, { path: 'Icon/userface/2207.txt', version: '1.2.1' }, { path: 'Icon/userface/2208.txt', version: '1.2.1' }, { path: 'Icon/userface/2220.txt', version: '1.1.1' }, { path: 'Icon/userface/2221.txt', version: '1.1.1' }, { path: 'Icon/userface/2222.txt', version: '1.1.1' }, { path: 'Icon/userface/2223.txt', version: '1.2.1' }, { path: 'Icon/userface/2224.txt', version: '1.2.1' }, { path: 'Icon/userface/3001.txt', version: '1.1.1' }, { path: 'Icon/userface/3001_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/3002.txt', version: '1.1.1' }, { path: 'Icon/userface/3003.txt', version: '1.1.1' }, { path: 'Icon/userface/3003_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/3004.txt', version: '1.1.1' }, { path: 'Icon/userface/3004_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/3005.txt', version: '1.1.1' }, { path: 'Icon/userface/3005_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/3006.txt', version: '1.1.1' }, { path: 'Icon/userface/3006_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/3007.txt', version: '1.1.1' }, { path: 'Icon/userface/3007_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/3008.txt', version: '1.1.1' }, { path: 'Icon/userface/3009.txt', version: '1.1.1' }, { path: 'Icon/userface/3009_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/3010.txt', version: '1.1.1' }, { path: 'Icon/userface/3010_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/3011.txt', version: '1.1.1' }, { path: 'Icon/userface/3011_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/3012.txt', version: '1.1.1' }, { path: 'Icon/userface/3012_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/3013.txt', version: '1.1.1' }, { path: 'Icon/userface/3013_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/3014.txt', version: '1.1.1' }, { path: 'Icon/userface/3014_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/3015.txt', version: '1.1.1' }, { path: 'Icon/userface/3015_bx.txt', version: '1.1.29' }, { path: 'Icon/userface/3016.txt', version: '1.1.1' }, { path: 'Icon/userface/3017.txt', version: '1.1.1' }, { path: 'Icon/userface/3018.txt', version: '1.1.1' }, { path: 'Icon/userface/3019.txt', version: '1.1.1' }, { path: 'Icon/userface/3020.txt', version: '1.1.1' }, { path: 'Icon/userface/3021.txt', version: '1.1.29' }, { path: 'Icon/userface/3022.txt', version: '1.1.29' }, { path: 'Icon/userface/3023.txt', version: '1.1.29' }, { path: 'Icon/userface/3024.txt', version: '1.1.29' }, { path: 'Icon/userface/3025.txt', version: '1.2.1' }, { path: 'Icon/userface/3027.txt', version: '1.2.1' }, { path: 'Icon/userface/3028.txt', version: '1.2.1' }, { path: 'Icon/userface/3029.txt', version: '1.2.1' }, { path: 'Icon/userface/3030.txt', version: '1.2.1' }, { path: 'Icon/userface/3031.txt', version: '1.2.1' }, { path: 'Icon/userface/3032.txt', version: '1.2.1' }, { path: 'Icon/userface/3033.txt', version: '1.2.1' }, { path: 'Icon/userface/3034.txt', version: '1.2.1' }, { path: 'Icon/userface/3035.txt', version: '1.2.1' }, { path: 'Icon/userface/3036.txt', version: '1.2.1' }, { path: 'Icon/userface/3037.txt', version: '1.2.1' }, { path: 'Icon/userface/3038.txt', version: '1.2.1' }, { path: 'Icon/userface/3039.txt', version: '1.2.1' }, { path: 'Icon/userface/3040.txt', version: '1.2.1' }, { path: 'Icon/userface/3041.txt', version: '1.2.1' }, { path: 'Icon/userface/3042.txt', version: '1.2.1' }, { path: 'Icon/userface/3043.txt', version: '1.2.1' }, { path: 'Icon/userface/3044.txt', version: '1.2.1' }, { path: 'Icon/userface/3045.txt', version: '1.2.1' }, { path: 'Icon/userface/3046.txt', version: '1.2.1' }, { path: 'Icon/userface/3047.txt', version: '1.2.1' }, { path: 'Icon/userface/3048.txt', version: '1.2.1' }, { path: 'Icon/userface/3049.txt', version: '1.2.1' }, { path: 'Icon/userface/3050.txt', version: '1.2.1' }, { path: 'Icon/userface/3051.txt', version: '1.2.1' } ],
+                sprays: [ { path: 'Icon/painticon/1.txt', version: '1.1.1' }, { path: 'Icon/painticon/10.txt', version: '1.1.1' }, { path: 'Icon/painticon/100.txt', version: '1.1.1' }, { path: 'Icon/painticon/101.txt', version: '1.1.1' }, { path: 'Icon/painticon/102.txt', version: '1.1.1' }, { path: 'Icon/painticon/103.txt', version: '1.2.1' }, { path: 'Icon/painticon/104.txt', version: '1.2.1' }, { path: 'Icon/painticon/105.txt', version: '1.1.22' }, { path: 'Icon/painticon/106.txt', version: '1.1.25' }, { path: 'Icon/painticon/107.txt', version: '1.1.25' }, { path: 'Icon/painticon/108_bx.txt', version: '1.1.30' }, { path: 'Icon/painticon/109_bx.txt', version: '1.1.30' }, { path: 'Icon/painticon/11.txt', version: '1.1.1' }, { path: 'Icon/painticon/110_bx.txt', version: '1.1.30' }, { path: 'Icon/painticon/111_bx.txt', version: '1.1.30' }, { path: 'Icon/painticon/112_bx.txt', version: '1.1.30' }, { path: 'Icon/painticon/113_bx.txt', version: '1.1.30' }, { path: 'Icon/painticon/114_bx.txt', version: '1.1.30' }, { path: 'Icon/painticon/115_bx.txt', version: '1.1.30' }, { path: 'Icon/painticon/116_bx.txt', version: '1.1.30' }, { path: 'Icon/painticon/117_bx.txt', version: '1.1.30' }, { path: 'Icon/painticon/118_bx.txt', version: '1.1.30' }, { path: 'Icon/painticon/119_bx.txt', version: '1.1.30' }, { path: 'Icon/painticon/12.txt', version: '1.1.1' }, { path: 'Icon/painticon/120_bx.txt', version: '1.1.30' }, { path: 'Icon/painticon/121_bx.txt', version: '1.1.30' }, { path: 'Icon/painticon/122_bx.txt', version: '1.1.30' }, { path: 'Icon/painticon/123_bx.txt', version: '1.1.30' }, { path: 'Icon/painticon/124_bx.txt', version: '1.1.30' }, { path: 'Icon/painticon/125_bx.txt', version: '1.1.30' }, { path: 'Icon/painticon/126_bx.txt', version: '1.1.30' }, { path: 'Icon/painticon/127_bx.txt', version: '1.1.30' }, { path: 'Icon/painticon/128_bx.txt', version: '1.1.30' }, { path: 'Icon/painticon/129_bx.txt', version: '1.1.30' }, { path: 'Icon/painticon/13.txt', version: '1.1.1' }, { path: 'Icon/painticon/130_bx.txt', version: '1.1.30' }, { path: 'Icon/painticon/131_bx.txt', version: '1.1.30' }, { path: 'Icon/painticon/132.txt', version: '1.2.1' }, { path: 'Icon/painticon/133_bx.txt', version: '1.2.1' }, { path: 'Icon/painticon/134_bx.txt', version: '1.2.1' }, { path: 'Icon/painticon/135_bx.txt', version: '1.2.1' }, { path: 'Icon/painticon/136_bx.txt', version: '1.2.1' }, { path: 'Icon/painticon/137_bx.txt', version: '1.2.1' }, { path: 'Icon/painticon/138_bx.txt', version: '1.2.1' }, { path: 'Icon/painticon/139_bx.txt', version: '1.2.5' }, { path: 'Icon/painticon/14.txt', version: '1.1.1' }, { path: 'Icon/painticon/140_bx.txt', version: '1.2.1' }, { path: 'Icon/painticon/141_bx.txt', version: '1.2.1' }, { path: 'Icon/painticon/142_bx.txt', version: '1.2.1' }, { path: 'Icon/painticon/143_bx.txt', version: '1.2.1' }, { path: 'Icon/painticon/144_bx.txt', version: '1.2.1' }, { path: 'Icon/painticon/145_bx.txt', version: '1.2.1' }, { path: 'Icon/painticon/146_bx.txt', version: '1.2.1' }, { path: 'Icon/painticon/147_bx.txt', version: '1.2.1' }, { path: 'Icon/painticon/148_bx.txt', version: '1.2.1' }, { path: 'Icon/painticon/149_bx.txt', version: '1.2.1' }, { path: 'Icon/painticon/15.txt', version: '1.1.1' }, { path: 'Icon/painticon/150_bx.txt', version: '1.2.1' }, { path: 'Icon/painticon/16.txt', version: '1.1.1' }, { path: 'Icon/painticon/17.txt', version: '1.1.1' }, { path: 'Icon/painticon/18.txt', version: '1.1.1' }, { path: 'Icon/painticon/19.txt', version: '1.1.1' }, { path: 'Icon/painticon/2.txt', version: '1.1.1' }, { path: 'Icon/painticon/20.txt', version: '1.1.1' }, { path: 'Icon/painticon/21.txt', version: '1.1.1' }, { path: 'Icon/painticon/22.txt', version: '1.1.1' }, { path: 'Icon/painticon/23.txt', version: '1.1.1' }, { path: 'Icon/painticon/24.txt', version: '1.1.1' }, { path: 'Icon/painticon/25.txt', version: '1.1.1' }, { path: 'Icon/painticon/26.txt', version: '1.1.1' }, { path: 'Icon/painticon/27.txt', version: '1.1.1' }, { path: 'Icon/painticon/28.txt', version: '1.1.1' }, { path: 'Icon/painticon/29.txt', version: '1.1.1' }, { path: 'Icon/painticon/3.txt', version: '1.1.1' }, { path: 'Icon/painticon/30.txt', version: '1.1.1' }, { path: 'Icon/painticon/31.txt', version: '1.1.1' }, { path: 'Icon/painticon/32.txt', version: '1.1.1' }, { path: 'Icon/painticon/33.txt', version: '1.1.1' }, { path: 'Icon/painticon/34.txt', version: '1.1.1' }, { path: 'Icon/painticon/35.txt', version: '1.1.1' }, { path: 'Icon/painticon/38.txt', version: '1.1.1' }, { path: 'Icon/painticon/39.txt', version: '1.1.1' }, { path: 'Icon/painticon/4.txt', version: '1.1.1' }, { path: 'Icon/painticon/40.txt', version: '1.1.1' }, { path: 'Icon/painticon/41.txt', version: '1.1.1' }, { path: 'Icon/painticon/42.txt', version: '1.1.1' }, { path: 'Icon/painticon/43.txt', version: '1.1.1' }, { path: 'Icon/painticon/44.txt', version: '1.1.1' }, { path: 'Icon/painticon/45.txt', version: '1.1.1' }, { path: 'Icon/painticon/46.txt', version: '1.1.1' }, { path: 'Icon/painticon/47.txt', version: '1.1.1' }, { path: 'Icon/painticon/48.txt', version: '1.1.1' }, { path: 'Icon/painticon/49.txt', version: '1.1.1' }, { path: 'Icon/painticon/5.txt', version: '1.1.1' }, { path: 'Icon/painticon/50.txt', version: '1.1.1' }, { path: 'Icon/painticon/51.txt', version: '1.1.1' }, { path: 'Icon/painticon/52.txt', version: '1.1.1' }, { path: 'Icon/painticon/53.txt', version: '1.1.1' }, { path: 'Icon/painticon/54.txt', version: '1.1.1' }, { path: 'Icon/painticon/55.txt', version: '1.1.1' }, { path: 'Icon/painticon/56.txt', version: '1.1.1' }, { path: 'Icon/painticon/57.txt', version: '1.1.1' }, { path: 'Icon/painticon/58.txt', version: '1.1.1' }, { path: 'Icon/painticon/59.txt', version: '1.1.1' }, { path: 'Icon/painticon/6.txt', version: '1.1.1' }, { path: 'Icon/painticon/60.txt', version: '1.1.1' }, { path: 'Icon/painticon/61.txt', version: '1.1.1' }, { path: 'Icon/painticon/62.txt', version: '1.1.1' }, { path: 'Icon/painticon/63.txt', version: '1.1.1' }, { path: 'Icon/painticon/64.txt', version: '1.1.1' }, { path: 'Icon/painticon/65.txt', version: '1.1.1' }, { path: 'Icon/painticon/67.txt', version: '1.1.1' }, { path: 'Icon/painticon/68.txt', version: '1.1.1' }, { path: 'Icon/painticon/69.txt', version: '1.1.1' }, { path: 'Icon/painticon/7.txt', version: '1.1.1' }, { path: 'Icon/painticon/70.txt', version: '1.1.1' }, { path: 'Icon/painticon/70_bx.txt', version: '1.1.14' }, { path: 'Icon/painticon/71.txt', version: '1.1.1' }, { path: 'Icon/painticon/72.txt', version: '1.1.1' }, { path: 'Icon/painticon/73.txt', version: '1.1.1' }, { path: 'Icon/painticon/74.txt', version: '1.1.1' }, { path: 'Icon/painticon/75.txt', version: '1.1.1' }, { path: 'Icon/painticon/76.txt', version: '1.1.1' }, { path: 'Icon/painticon/77.txt', version: '1.1.1' }, { path: 'Icon/painticon/78.txt', version: '1.1.1' }, { path: 'Icon/painticon/79.txt', version: '1.1.1' }, { path: 'Icon/painticon/8.txt', version: '1.1.1' }, { path: 'Icon/painticon/80.txt', version: '1.2.1' }, { path: 'Icon/painticon/81.txt', version: '1.2.1' }, { path: 'Icon/painticon/82.txt', version: '1.2.1' }, { path: 'Icon/painticon/9.txt', version: '1.1.1' }, { path: 'Icon/painticon/graffiti_1.txt', version: '3.1.20' }, { path: 'Icon/painticon/graffiti_10.txt', version: '3.1.20' }, { path: 'Icon/painticon/graffiti_11.txt', version: '3.1.20' }, { path: 'Icon/painticon/graffiti_12.txt', version: '3.2.02' }, { path: 'Icon/painticon/graffiti_13.txt', version: '3.2.02' }, { path: 'Icon/painticon/graffiti_14.txt', version: '3.2.02' }, { path: 'Icon/painticon/graffiti_15.txt', version: '3.2.02' }, { path: 'Icon/painticon/graffiti_16.txt', version: '3.2.02' }, { path: 'Icon/painticon/graffiti_17.txt', version: '3.2.02' }, { path: 'Icon/painticon/graffiti_18.txt', version: '3.2.02' }, { path: 'Icon/painticon/graffiti_19.txt', version: '3.2.02' }, { path: 'Icon/painticon/graffiti_2.txt', version: '3.1.20' }, { path: 'Icon/painticon/graffiti_20.txt', version: '3.2.02' }, { path: 'Icon/painticon/graffiti_21.txt', version: '3.2.02' }, { path: 'Icon/painticon/graffiti_22.txt', version: '3.2.02' }, { path: 'Icon/painticon/graffiti_23.txt', version: '3.2.02' }, { path: 'Icon/painticon/graffiti_24.txt', version: '3.2.02' }, { path: 'Icon/painticon/graffiti_25.txt', version: '3.2.02' }, { path: 'Icon/painticon/graffiti_26.txt', version: '3.2.02' }, { path: 'Icon/painticon/graffiti_27.txt', version: '3.2.02' }, { path: 'Icon/painticon/graffiti_28.txt', version: '3.2.02' }, { path: 'Icon/painticon/graffiti_29.txt', version: '3.1.53' }, { path: 'Icon/painticon/graffiti_3.txt', version: '3.1.20' }, { path: 'Icon/painticon/graffiti_30.txt', version: '3.2.02' }, { path: 'Icon/painticon/graffiti_31.txt', version: '3.2.02' }, { path: 'Icon/painticon/graffiti_32.txt', version: '3.2.02' }, { path: 'Icon/painticon/graffiti_33.txt', version: '3.2.02' }, { path: 'Icon/painticon/graffiti_34.txt', version: '3.2.02' }, { path: 'Icon/painticon/graffiti_35.txt', version: '3.2.02' }, { path: 'Icon/painticon/graffiti_4.txt', version: '3.1.20' }, { path: 'Icon/painticon/graffiti_5.txt', version: '3.1.20' }, { path: 'Icon/painticon/graffiti_6.txt', version: '3.1.20' }, { path: 'Icon/painticon/graffiti_7.txt', version: '3.1.20' }, { path: 'Icon/painticon/graffiti_8.txt', version: '3.1.20' }, { path: 'Icon/painticon/graffiti_9.txt', version: '3.1.20' } ]
+            };
+
+            const heroGrid = document.getElementById('hero-grid');
+            const avatarGrid = document.getElementById('avatar-grid');
+            const sprayGrid = document.getElementById('spray-grid');
+            const searchInput = document.getElementById('search-input');
+            const filterBtns = document.querySelectorAll('.filter-btn');
+            const noResults = document.getElementById('no-results');
+            
+            const modal = document.getElementById('hero-modal');
+            const modalInner = document.getElementById('modal-inner');
+
+            const classTagMap = {
+                'Ataque': 'tag-attack', 'Defesa': 'tag-defense',
+                'Tanque': 'tag-tank', 'Suporte': 'tag-support'
+            };
+            
+            function createHeroCard(hero) {
+                const card = document.createElement('div');
+                card.className = `hero-card rounded-lg p-4 text-center cursor-pointer`;
+                card.dataset.name = hero.name.toLowerCase();
+                card.dataset.class = hero.class;
+                const tagClass = classTagMap[hero.class] || 'tag-tank';
+                
+                card.innerHTML = `
+                    <div class="w-full aspect-square bg-black/20 rounded-md overflow-hidden mb-3 flex items-center justify-center relative z-10">
+                        <img src="${hero.iconUrl}" alt="Ícone de ${hero.name}" class="w-full h-full object-contain" onerror="this.src='https://placehold.co/128x128/0c0a18/a7a9c4?text=?'; this.onerror=null;">
+                    </div>
+                    <h4 class="font-orbitron font-bold text-white truncate">${hero.name}</h4>
+                    <span class="tag ${tagClass}">${hero.class}</span>
+                `;
+                card.addEventListener('click', () => showModal(hero));
+                return card;
+            }
+            
+            function renderHeroes(filter = 'all', searchTerm = '') {
+                heroGrid.innerHTML = '';
+                let hasResults = false;
+                const normalizedSearch = searchTerm.toLowerCase();
+                heroData.forEach(hero => {
+                    const matchesFilter = filter === 'all' || hero.class === filter;
+                    const matchesSearch = hero.name.toLowerCase().includes(normalizedSearch);
+                    if (matchesFilter && matchesSearch) {
+                        heroGrid.appendChild(createHeroCard(hero));
+                        hasResults = true;
+                    }
+                });
+                noResults.style.display = hasResults ? 'none' : 'block';
+            }
+
+            function showModal(hero) {
+                const tagClass = classTagMap[hero.class] || 'tag-tank';
+                
+                const skillsHtml = hero.skills.map((skill) => {
+                    let skillIconUrl = getAssetUrl(`Icon/skillicon/${skill.icon}.txt`);
+                    let skillTypeHtml = '';
+                    if (skill.isUltra) {
+                        skillTypeHtml = '<span class="font-orbitron text-[#ff0096] font-bold ml-1 tracking-wider">[ULTRA]</span>';
+                    } else if (skill.isPassive) {
+                        skillTypeHtml = '<span class="font-orbitron text-[#00e1ff] font-bold ml-1 tracking-wider">[PASSIVA]</span>';
+                    }
+
+                    const cooldownInfo = skill.cd ? `<span class="text-cyan-400">CD: ${skill.cd / 1000}s</span>` : '';
+                    const durationInfo = skill.longtime > 0 ? `<span class="text-pink-400">DURAÇÃO: ${skill.longtime / 1000}s</span>` : '';
+
+                    return `
+                        <div class="py-3 flex gap-4 items-center">
+                            <img src="${skillIconUrl}" alt="Ícone da Habilidade ${skill.name}" class="h-12 w-12 object-contain flex-shrink-0 bg-black/30 rounded-md p-1 border border-slate-700" onerror="this.style.display='none'">
+                            <div>
+                                <p class="font-bold text-white">${skill.name} ${skillTypeHtml}</p>
+                                <p class="text-slate-400 text-sm">${skill.desc}</p>
+                                <div class="text-xs font-mono mt-1 flex gap-4">
+                                    ${cooldownInfo}
+                                    ${durationInfo}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('<hr class="border-slate-800">');
+
+                const skinsHtml = hero.skins.map(skin => `
+                    <div class="text-center">
+                        <img src="${getAssetUrl(`Icon/herounlock/skin/${skin.icon}.txt`)}" class="w-16 h-16 mx-auto rounded-md bg-black/30 border border-slate-700 p-1" onerror="this.src='https://placehold.co/64x64/0c0a18/a7a9c4?text=?'; this.onerror=null;" alt="Skin ${skin.name}">
+                        <p class="text-xs text-slate-400 mt-1 truncate">${skin.name.replace(/<\/?size=\d+>/g, '').replace(/\(.*\)/g, '')}</p>
+                    </div>
+                `).join('');
+
+                const weaponsHtml = hero.weapons.map(weapon => `
+                    <div class="text-center">
+                        <img src="${getAssetUrl(`Icon/herounlock/weapon/${weapon.icon}.txt`)}" class="w-16 h-16 mx-auto rounded-md bg-black/30 border border-slate-700 p-1 object-contain" onerror="this.src='https://placehold.co/64x64/0c0a18/a7a9c4?text=?'; this.onerror=null;" alt="Arma ${weapon.name}">
+                        <p class="text-xs text-slate-400 mt-1 truncate">${weapon.name.replace(/<\/?size=\d+>/g, '').replace(/\(.*\)/g, '')}</p>
+                    </div>
+                `).join('');
+                
+                const emotionsHtml = hero.emotions.map(emotion => `
+                     <div class="text-center">
+                        <img src="${getAssetUrl(`Icon/herounlock/emotion/${emotion.icon}.txt`)}" class="w-16 h-16 mx-auto rounded-md bg-black/30 border border-slate-700 p-1 object-contain" onerror="this.src='https://placehold.co/64x64/0c0a18/a7a9c4?text=?'; this.onerror=null;" alt="Emote ${emotion.name}">
+                        <p class="text-xs text-slate-400 mt-1 truncate">${emotion.name.replace(/<\/?size=\d+>/g, '').replace(/\(.*\)/g, '')}</p>
+                    </div>
+                `).join('');
+
+                const posesHtml = hero.poses.map(pose => `
+                     <div class="text-center">
+                        <img src="${getAssetUrl(`Icon/herounlock/herocard/${hero.id}.txt`)}" class="w-16 h-16 mx-auto rounded-md bg-black/30 border border-slate-700 p-1 object-contain" onerror="this.src='https://placehold.co/64x64/0c0a18/a7a9c4?text=?'; this.onerror=null;" alt="Pose ${pose.name}">
+                         <p class="text-xs text-slate-400 mt-1 truncate">${pose.name}</p>
+                    </div>
+                `).join('');
+
+                modalInner.innerHTML = `
+                    <button id="close-modal" class="absolute top-4 right-4 text-3xl font-light leading-none text-slate-400 hover:text-white transition-colors z-20">&times;</button>
+                    <div class="grid md:grid-cols-12 gap-0">
+                        <div class="md:col-span-3 bg-black/30 p-6 flex flex-col justify-start">
+                            <h2 class="font-orbitron text-4xl font-bold text-white">${hero.name}</h2>
+                            <span class="tag ${tagClass} mt-2">${hero.class}</span>
+                            <p class="font-mono text-xs text-slate-500 mt-4">ID: ${hero.id}<br>CÓDIGO: ${hero.internal}<br>ORIGEM: ${hero.origin}</p>
+                            
+                            <div class="mt-6">
+                                <h4 class="font-orbitron text-lg font-bold text-white mb-3">Arsenal</h4>
+                                <div class="grid grid-cols-2 gap-4">
+                                    ${weaponsHtml}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="md:col-span-6 bg-black/10 p-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <h4 class="font-orbitron text-lg font-bold text-white mb-2">Habilidades</h4>
+                                    <div class="divide-y divide-slate-800">${skillsHtml}</div>
+                                </div>
+                                <div class="space-y-6">
+                                    <div>
+                                        <h4 class="font-orbitron text-lg font-bold text-white mb-3">Skins</h4>
+                                        <div class="grid grid-cols-3 gap-4">${skinsHtml}</div>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-orbitron text-lg font-bold text-white mb-3">Emotes e Poses</h4>
+                                        <div class="grid grid-cols-3 gap-4">${emotionsHtml}${posesHtml}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="md:col-span-3 relative">
+                            <img src="${hero.imageUrl}" alt="Arte de ${hero.name}" class="w-full h-full object-cover object-top" onerror="this.src='https://placehold.co/400x600/0c0a18/a7a9c4?text=SEM+SINAL'; this.onerror=null;">
+                             <div class="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-[#0c0a18] to-transparent"></div>
+                        </div>
+                    </div>
+                `;
+                modal.classList.add('active');
+                document.getElementById('close-modal').addEventListener('click', () => modal.classList.remove('active'));
+            }
+            
+            modal.addEventListener('click', (e) => {
+                if(e.target === modal) modal.classList.remove('active');
+            });
+
+            searchInput.addEventListener('input', () => {
+                const activeFilter = document.querySelector('.filter-btn.active').dataset.filter;
+                renderHeroes(activeFilter, searchInput.value);
+            });
+
+            filterBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    filterBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    renderHeroes(btn.dataset.filter, searchInput.value);
+                });
+            });
+
+            function renderCosmetics() {
+                avatarGrid.innerHTML = cosmeticData.avatars.map(item => `
+                    <div class="cosmetic-card p-2 text-center">
+                        <img src="${getAssetUrl(item.path)}" class="w-24 h-24 mx-auto rounded-full bg-black/30 border-2 border-slate-700 p-1" onerror="this.src='https://placehold.co/96x96/0c0a18/a7a9c4?text=?'; this.onerror=null;" alt="Avatar">
+                    </div>
+                `).join('');
+
+                 sprayGrid.innerHTML = cosmeticData.sprays.map(item => `
+                    <div class="cosmetic-card p-2 text-center">
+                         <img src="${getAssetUrl(item.path)}" class="w-24 h-24 mx-auto rounded-md bg-black/30 border-2 border-slate-700 p-1 object-contain" onerror="this.src='https://placehold.co/96x96/0c0a18/a7a9c4?text=?'; this.onerror=null;" alt="Spray">
+                    </div>
+                `).join('');
+            }
+
+            const classCounts = heroData.reduce((acc, hero) => {
+                acc[hero.class] = (acc[hero.class] || 0) + 1;
+                return acc;
+            }, {});
+            
+            const ctx = document.getElementById('classDistributionChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(classCounts),
+                    datasets: [{
+                        label: 'Número de Heróis',
+                        data: Object.values(classCounts),
+                        backgroundColor: [ 'rgba(255, 71, 71, 0.5)', 'rgba(0, 173, 255, 0.5)', 'rgba(167, 169, 196, 0.5)', 'rgba(0, 255, 157, 0.5)' ],
+                        borderColor: [ '#ff4747', '#00adff', '#a7a9c4', '#00ff9d' ],
+                        borderWidth: 2,
+                        hoverOffset: 8
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, cutout: '60%',
+                    plugins: {
+                        legend: { position: 'bottom', labels: { font: { family: "'Inter', sans-serif", size: 14 }, color: '#a7a9c4', padding: 20 } },
+                        tooltip: { bodyFont: { family: "'Inter'" }, titleFont: { family: "'Inter'" } }
+                    }
+                }
+            });
+            
+            const mobileMenuButton = document.getElementById('mobile-menu-button');
+            const mobileMenu = document.getElementById('mobile-menu');
+            mobileMenuButton.addEventListener('click', () => mobileMenu.classList.toggle('hidden'));
+            
+            renderHeroes();
+            renderCosmetics();
+        });
+    </script>
+</body>
+</html>
