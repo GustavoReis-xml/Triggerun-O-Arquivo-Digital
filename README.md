@@ -71,6 +71,3 @@ Contribuições para melhorar e expandir este arquivo são bem-vindas! Se tiver 
 
 ---
 
-## 📜 Licença
-
-Este projeto está licenciado sob a Licença MIT. Veja o ficheiro `LICENSE` para mais detalhes.
