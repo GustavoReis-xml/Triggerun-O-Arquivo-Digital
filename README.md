@@ -6,7 +6,7 @@ Bem-vindo ao **Arquivo Digital de Triggerun**, um projeto de arqueologia digital
 
 Este repositório contém uma aplicação web de página única (SPA) que funciona como um museu interativo, permitindo aos utilizadores explorar o elenco de heróis, os seus cosméticos e a história fragmentada deste jogo esquecido.
 
-**[➡️ Ver Demonstração Ao Vivo (Live Demo)](#)** _(Substitua pelo link de implementação)_
+**[➡️ Ver Demonstração Ao Vivo (Live Demo)](#)**
 
 ---
 
